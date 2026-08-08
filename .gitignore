@@ -34,7 +34,9 @@ local.properties
 *.keystore
 !debug.keystore
 .kotlin/
-
+.env
+.env.*
+!.env.example
 # node.js
 #
 node_modules/
@@ -73,3 +75,4 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+package.lock.json
