@@ -1,90 +1,35 @@
-const User = require("../models/User");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-// Register
-const register = async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
+const TEST_OTP = '123456';
+const normalizeMobile = value => String(value || '').replace(/\D/g, '');
 
-    const existingUser = await User.findOne({ email });
-
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: "User already exists",
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "User registered successfully",
-      user,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+const requestOtp = async (req, res) => {
+  const mobileNumber = normalizeMobile(req.body.mobileNumber);
+  if (!/^\d{10}$/.test(mobileNumber)) {
+    return res.status(400).json({success: false, message: 'Enter a valid 10-digit mobile number'});
   }
+  return res.json({success: true, message: 'OTP sent successfully'});
 };
 
-// Login
-const login = async (req, res) => {
+const verifyOtp = async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Email",
-      });
+    const mobileNumber = normalizeMobile(req.body.mobileNumber);
+    const otp = String(req.body.otp || '');
+    if (!/^\d{10}$/.test(mobileNumber)) {
+      return res.status(400).json({success: false, message: 'Enter a valid 10-digit mobile number'});
     }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Password",
-      });
+    if (otp !== TEST_OTP) {
+      return res.status(401).json({success: false, message: 'The OTP you entered is incorrect'});
     }
-
-    const token = jwt.sign(
-      {
-        id: user._id,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
-      }
+    const user = await User.findOneAndUpdate(
+      {mobileNumber}, {$setOnInsert: {mobileNumber}}, {new: true, upsert: true, runValidators: true},
     );
-
-    res.status(200).json({
-      success: true,
-      message: "Login Successful",
-      token,
-      user,
-    });
+    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: '30d'});
+    return res.json({success: true, message: 'OTP verified successfully', token, user});
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return res.status(500).json({success: false, message: error.message});
   }
 };
 
-module.exports = {
-  register,
-  login,
-};
+module.exports = {requestOtp, verifyOtp};

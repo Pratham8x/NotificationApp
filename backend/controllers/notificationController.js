@@ -28,6 +28,13 @@ const registerFcmToken = async (req, res) => {
       });
     }
 
+    // An FCM token identifies one app installation. If a different account
+    // signs in on that device, move the token instead of notifying both users.
+    await User.updateMany(
+      {_id: {$ne: user._id}, 'fcmTokens.token': token},
+      {$pull: {fcmTokens: {token}}},
+    );
+
     const tokenExists = user.fcmTokens.some(
       item => item.token === token
     );

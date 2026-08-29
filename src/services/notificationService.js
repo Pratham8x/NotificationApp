@@ -118,7 +118,7 @@ export const registerFcmToken = async (
       {
         userId,
         token,
-        deviceType: 'android',
+        deviceType: Platform.OS,
       },
     );
 
