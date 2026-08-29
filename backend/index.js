@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("./config/loadLocalFirebaseEnv");
 
 const express = require("express");
 const http = require("http");
