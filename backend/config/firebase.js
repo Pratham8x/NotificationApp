@@ -1,46 +1,29 @@
 const admin = require("firebase-admin");
-const fs = require("fs");
-const path = require("path");
 
-const serviceAccountPath = path.join(
-  __dirname,
-  "..",
-  "firebase-service-account.json"
-);
-
-const getServiceAccount = () => {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    try {
-      const serviceAccount = JSON.parse(
-        process.env.FIREBASE_SERVICE_ACCOUNT
-      );
-
-      // Support credentials whose newlines were escaped by the hosting platform.
-      if (serviceAccount.private_key) {
-        serviceAccount.private_key =
-          serviceAccount.private_key.replace(/\\n/g, "\n");
-      }
-
-      return serviceAccount;
-    } catch (error) {
-      throw new Error(
-        `FIREBASE_SERVICE_ACCOUNT must be valid JSON: ${error.message}`
-      );
-    }
-  }
-
-  if (fs.existsSync(serviceAccountPath)) {
-    return JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-  }
-
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   throw new Error(
-    "Firebase credentials are missing. Set FIREBASE_SERVICE_ACCOUNT or add backend/firebase-service-account.json."
+    "FIREBASE_SERVICE_ACCOUNT environment variable is required."
   );
-};
+}
+
+let serviceAccount;
+
+try {
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+} catch (error) {
+  throw new Error(
+    `FIREBASE_SERVICE_ACCOUNT must be valid JSON: ${error.message}`
+  );
+}
+
+// Railway may store private-key newlines in escaped form.
+if (serviceAccount.private_key) {
+  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+}
 
 if (admin.getApps().length === 0) {
   admin.initializeApp({
-    credential: admin.cert(getServiceAccount()),
+    credential: admin.cert(serviceAccount),
   });
 }
 
