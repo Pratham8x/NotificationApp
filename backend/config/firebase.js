@@ -15,7 +15,7 @@ const getServiceAccount = () => {
         process.env.FIREBASE_SERVICE_ACCOUNT
       );
 
-      // Railway variables sometimes contain escaped newlines.
+      // Support credentials whose newlines were escaped by the hosting platform.
       if (serviceAccount.private_key) {
         serviceAccount.private_key =
           serviceAccount.private_key.replace(/\\n/g, "\n");
@@ -34,7 +34,7 @@ const getServiceAccount = () => {
   }
 
   throw new Error(
-    "Firebase credentials are missing. Set FIREBASE_SERVICE_ACCOUNT to the service-account JSON."
+    "Firebase credentials are missing. Set FIREBASE_SERVICE_ACCOUNT or add backend/firebase-service-account.json."
   );
 };
 
