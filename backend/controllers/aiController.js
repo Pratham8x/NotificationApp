@@ -9,15 +9,40 @@ async function chatWithGemini(req, res) {
     !item || item.role !== (i % 2 === 0 ? 'user' : 'model') || typeof item.text !== 'string' || !item.text.trim() || item.text.length > 8000) || history.length % 2 !== 0) {
     return res.status(400).json({success: false, message: 'Invalid conversation history'});
   }
+  let stage = 'context';
   try {
     const context = await getContext(message.trim());
+    stage = 'generation';
     const answer = await generateAnswer(message.trim(), context, history);
     return res.json({success: true, answer});
   } catch (error) {
-    // Never log SDK errors, prompts or credentials.
-    const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : Number(error.status) === 429 ? 429 : 502;
-    return res.status(status).json({success: false, message: status === 429
-      ? 'AI is busy. Please try again shortly.' : 'AI is temporarily unavailable. Please try again later.'});
+    // Log only allowlisted metadata; never raw SDK errors, keys or prompts.
+    const upstreamStatus = Number(error.status);
+    let status = 502;
+    let code = 'AI_UPSTREAM_ERROR';
+    let errorMessage = 'AI is temporarily unavailable. Please try again later.';
+    if (error.code === 'AI_NOT_CONFIGURED') {
+      status = 503;
+      code = 'AI_NOT_CONFIGURED';
+    } else if (upstreamStatus === 401 || upstreamStatus === 403) {
+      status = 503;
+      code = 'AI_AUTH_FAILED';
+    } else if (upstreamStatus === 400 && /API_KEY_INVALID|API key not valid/i.test(error.message || '')) {
+      status = 503;
+      code = 'AI_AUTH_FAILED';
+    } else if (upstreamStatus === 404) {
+      status = 503;
+      code = 'AI_MODEL_UNAVAILABLE';
+    } else if (upstreamStatus === 429) {
+      status = 429;
+      code = 'AI_RATE_LIMITED';
+      errorMessage = 'AI is busy. Please try again shortly.';
+    }
+    console.error('AI request failed', {
+      code, stage,
+      upstreamStatus: Number.isInteger(upstreamStatus) ? upstreamStatus : null,
+    });
+    return res.status(status).json({success: false, code, message: errorMessage});
   }
 }
 module.exports = {chatWithGemini};

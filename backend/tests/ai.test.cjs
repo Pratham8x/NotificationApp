@@ -35,11 +35,13 @@ test('rejects system role history', async () => {
   assert.equal(res.statusCode, 400);
 });
 test('handles empty answers and upstream failures without leaking details', async () => {
-  for (const status of [429, 403, 500]) {
+  for (const status of [429, 401, 403, 404, 500]) {
     client.models.generateContent = async () => {throw Object.assign(new Error('secret'), {status});};
     const res = response();
     await chatWithGemini({body: {message: 'Hello'}}, res);
-    assert.equal(res.statusCode, status === 429 ? 429 : 502);
+    assert.equal(res.statusCode, status === 429 ? 429 : [401, 403, 404].includes(status) ? 503 : 502);
+    if ([401, 403].includes(status)) assert.equal(res.body.code, 'AI_AUTH_FAILED');
+    if (status === 404) assert.equal(res.body.code, 'AI_MODEL_UNAVAILABLE');
     assert.doesNotMatch(JSON.stringify(res.body), /secret/);
   }
   client.models.generateContent = async () => ({text: ''});

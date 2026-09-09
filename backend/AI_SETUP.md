@@ -83,3 +83,6 @@ Models verified against official documentation:
 - https://ai.google.dev/gemini-api/docs/embeddings (gemini-embedding-2)
 
 Verification: `node --test backend/tests/ai.test.cjs` uses SDK mocks and makes no paid API calls. Live Gemini credentials, Atlas indexing and device interaction require an integration smoke test in your environment.
+
+Railway troubleshooting:
+Set GEMINI_API_KEY in the Railway backend service Variables, not only in your local .env, then redeploy. A Google 401/403 or API_KEY_INVALID now returns AI_AUTH_FAILED (503); verify the key and its API restrictions in the Google project. AI_MODEL_UNAVAILABLE means the selected model is unavailable (Google 404). AI_RATE_LIMITED means quota/rate limits (429). Logs contain only code, stage and upstream HTTP status. Keep AI_RAG_ENABLED=false until Atlas ingestion and indexing are complete.
