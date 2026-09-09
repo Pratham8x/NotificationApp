@@ -71,7 +71,14 @@ const HomeScreen = ({navigation, route}) => {
           renderItem={({item}) => <UserRow user={item} onPress={() => navigation.navigate('Chat', {user: item})} />}
           contentContainerStyle={users.length ? styles.list : styles.emptyList}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadUsers(true)} tintColor="#2563EB" colors={['#2563EB']} />}
-          ListHeaderComponent={error ? <Text style={styles.error}>{error}</Text> : null}
+          ListHeaderComponent={<>
+            <TouchableOpacity style={styles.userRow} onPress={() => navigation.navigate('AiChat')} accessibilityRole="button" accessibilityLabel="Chat with Chirpy AI">
+              <View style={styles.userAvatar}><Ionicons name="sparkles" size={25} color="#2563EB" /></View>
+              <View style={styles.userDetails}><Text style={styles.phone}>Chirpy AI</Text><Text style={styles.userHint}>Ask about insurance · Demo assistant</Text></View>
+              <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+            </TouchableOpacity>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+          </>}
           ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No other users yet</Text><Text style={styles.emptyText}>Registered mobile numbers will appear here.</Text></View>}
         />
       )}

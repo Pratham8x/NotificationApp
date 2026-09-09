@@ -6,6 +6,7 @@ import {useDispatch, useSelector} from 'react-redux';
 import LoginScreen from '../screens/LoginScreen';
 import MainTabs from './MainTabs';
 import ChatScreen from '../screens/ChatScreen';
+import AiChatScreen from '../screens/AiChatScreen';
 import {getSession} from '../services/authStorage';
 import {restoreSession} from '../store/authSlice';
 
@@ -24,7 +25,7 @@ const AppNavigator = () => {
     <NavigationContainer theme={theme}>
       <StatusBar barStyle="dark-content" backgroundColor="#F7FAFF" translucent={false} />
       <Stack.Navigator screenOptions={{headerShown: false, contentStyle: {backgroundColor: '#F7FAFF'}}}>
-        {token ? <><Stack.Screen name="MainTabs" component={MainTabs} /><Stack.Screen name="Chat" component={ChatScreen} /></> : <Stack.Screen name="Login" component={LoginScreen} />}
+        {token ? <><Stack.Screen name="MainTabs" component={MainTabs} /><Stack.Screen name="Chat" component={ChatScreen} /><Stack.Screen name="AiChat" component={AiChatScreen} /></> : <Stack.Screen name="Login" component={LoginScreen} />}
       </Stack.Navigator>
     </NavigationContainer>
   );
