@@ -86,3 +86,18 @@ test('diagnostics classify failures without exposing provider text or secrets', 
   assert.equal(configuration().keyPresent, true);
   assert.doesNotMatch(JSON.stringify(configuration()), /test-placeholder/);
 });
+test('deadline aborts outstanding work and returns AI_TIMEOUT', async () => {
+  const {withAiDeadline} = require('../services/aiDeadline');
+  let signal;
+  await assert.rejects(withAiDeadline(value => {
+    signal = value;
+    return new Promise(() => {});
+  }, 10), {code: 'AI_TIMEOUT'});
+  assert.equal(signal.aborted, true);
+});
+test('deadline preserves success and immediate provider errors', async () => {
+  const {withAiDeadline} = require('../services/aiDeadline');
+  assert.equal(await withAiDeadline(async () => 'OK', 100), 'OK');
+  const error = Object.assign(new Error('provider unavailable'), {status: 503});
+  await assert.rejects(withAiDeadline(async () => {throw error;}, 100), value => value === error);
+});

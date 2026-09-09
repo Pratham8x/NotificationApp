@@ -1,3 +1,4 @@
+const {withAiDeadline} = require('../services/aiDeadline');
 const {randomUUID} = require('node:crypto');
 const {generateAnswer, GEMINI_MODEL} = require('../services/geminiService');
 const {getContext} = require('../services/aiContextService');
@@ -17,9 +18,13 @@ async function chatWithGemini(req, res) {
   logAi('chat_started', {requestId, model: GEMINI_MODEL, ...configuration()});
   let stage = 'context';
   try {
-    const context = await getContext(message.trim());
-    stage = 'generation';
-    const answer = await generateAnswer(message.trim(), context, history);
+    const answer = await withAiDeadline(async signal => {
+      const context = await getContext(message.trim(), signal);
+      signal.throwIfAborted();
+      stage = 'generation';
+      logAi('generation_started', {requestId, durationMs: Date.now() - started});
+      return generateAnswer(message.trim(), context, history, signal);
+    });
     logAi('generation_succeeded', {requestId, durationMs: Date.now() - started});
     return res.json({success: true, answer});
   } catch (error) {
@@ -28,7 +33,11 @@ async function chatWithGemini(req, res) {
     let status = 502;
     let code = 'AI_UPSTREAM_ERROR';
     let errorMessage = 'AI is temporarily unavailable. Please try again later.';
-    if (error.code === 'AI_NOT_CONFIGURED') {
+    if (error.code === 'AI_TIMEOUT') {
+      status = 504;
+      code = 'AI_TIMEOUT';
+      errorMessage = 'AI took too long to respond. Please try again.';
+    } else if (error.code === 'AI_NOT_CONFIGURED') {
       status = 503;
       code = 'AI_NOT_CONFIGURED';
     } else if (upstreamStatus === 401 || upstreamStatus === 403) {
