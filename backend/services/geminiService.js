@@ -8,6 +8,7 @@ function getGeminiClient() {
     throw error;
   }
   if (!client) client = new GoogleGenAI({
+    vertexai: false,
     apiKey: process.env.GEMINI_API_KEY.trim(),
     httpOptions: {timeout: 30000, retryOptions: {attempts: 1}},
   });

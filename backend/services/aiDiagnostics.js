@@ -19,6 +19,8 @@ function errorDetails(error) {
   const message = typeof error?.message === 'string' ? error.message : '';
   const status = Number(error?.status);
   const categories = [
+    ['ACCESS_TOKEN_TYPE_UNSUPPORTED', /ACCESS_TOKEN_TYPE_UNSUPPORTED/i],
+    ['CREDENTIALS_MISSING', /CREDENTIALS_MISSING/i],
     ['KEY_INVALID', /API_KEY_INVALID|API key not valid/i],
     ['KEY_REPORTED_LEAKED', /leaked/i],
     ['API_DISABLED', /SERVICE_DISABLED|API has not been used|is disabled/i],

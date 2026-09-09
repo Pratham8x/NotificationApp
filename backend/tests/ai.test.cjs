@@ -72,6 +72,7 @@ test('diagnostics classify failures without exposing provider text or secrets', 
   const {errorDetails, configuration} = require('../services/aiDiagnostics');
   for (const [message, reason] of [
     ['API_KEY_INVALID secret-key user-message', 'KEY_INVALID'],
+    ['ACCESS_TOKEN_TYPE_UNSUPPORTED secret-key', 'ACCESS_TOKEN_TYPE_UNSUPPORTED'],
     ['Your key was reported as leaked secret-key', 'KEY_REPORTED_LEAKED'],
     ['quota exceeded secret-key', 'QUOTA_EXCEEDED'],
     ['model is not found secret-key', 'MODEL_NOT_FOUND'],
