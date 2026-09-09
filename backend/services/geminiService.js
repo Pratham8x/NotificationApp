@@ -1,5 +1,5 @@
 const {GoogleGenAI} = require('@google/genai');
-const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-3.1-flash-lite';
 let client;
 function getGeminiClient() {
   if (!process.env.GEMINI_API_KEY?.trim()) {

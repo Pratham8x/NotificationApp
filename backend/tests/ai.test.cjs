@@ -20,7 +20,7 @@ test('rejects missing, blank, non-string and oversized messages before Gemini', 
 });
 test('returns answer, demo context and bounded conversation to Gemini', async () => {
   client.models.generateContent = async request => {
-    assert.equal(request.model, 'gemini-3.8-flash');
+    assert.equal(request.model, 'gemini-3.1-flash-lite');
     assert.match(request.contents[2].parts[0].text, /FICTIONAL DEMO/);
     assert.equal(request.contents[0].role, 'user');
     return {text: 'Demo answer'};

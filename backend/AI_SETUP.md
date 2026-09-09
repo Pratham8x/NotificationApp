@@ -79,7 +79,7 @@ for (const document of documents) {
 3. Wait until the index is queryable, set AI_RAG_ENABLED=true, and restart the backend. Requests then embed the question, retrieve up to four documents, and send context plus the question to Gemini. An unavailable index returns a safe error instead of silently using demo content. Re-embed all documents when changing embedding models or dimensions. The collection is for shared public knowledge; private data requires server-side authorization filters and matching Atlas filter fields.
 
 Models verified against official documentation:
-- https://ai.google.dev/gemini-api/docs/models (gemini-3.8-flash)
+- https://ai.google.dev/gemini-api/docs/models (gemini-3.1-flash-lite)
 - https://ai.google.dev/gemini-api/docs/embeddings (gemini-embedding-2)
 
 Verification: `node --test backend/tests/ai.test.cjs` uses SDK mocks and makes no paid API calls. Live Gemini credentials, Atlas indexing and device interaction require an integration smoke test in your environment.
