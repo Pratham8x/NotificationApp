@@ -40,6 +40,11 @@ async function chatWithGemini(req, res) {
     } else if (upstreamStatus === 404) {
       status = 503;
       code = 'AI_MODEL_UNAVAILABLE';
+    } else if ([500, 502, 503, 504].includes(upstreamStatus)) {
+      status = 503;
+      code = 'AI_PROVIDER_UNAVAILABLE';
+      errorMessage = 'Gemini is temporarily unavailable. Please try again in a moment.';
+      res.set?.('Retry-After', '10');
     } else if (upstreamStatus === 429) {
       status = 429;
       code = 'AI_RATE_LIMITED';

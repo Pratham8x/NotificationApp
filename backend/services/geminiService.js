@@ -10,7 +10,11 @@ function getGeminiClient() {
   if (!client) client = new GoogleGenAI({
     vertexai: false,
     apiKey: process.env.GEMINI_API_KEY.trim(),
-    httpOptions: {timeout: 30000, retryOptions: {attempts: 1}},
+    // One retry for temporary provider failures; never retry rejected credentials.
+    httpOptions: {
+      timeout: 15000,
+      retryOptions: {attempts: 2, initialDelay: 1, maxDelay: 2, httpStatusCodes: [500, 502, 503, 504]},
+    },
   });
   return client;
 }
