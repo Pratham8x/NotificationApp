@@ -86,3 +86,12 @@ Verification: `node --test backend/tests/ai.test.cjs` uses SDK mocks and makes n
 
 Railway troubleshooting:
 Set GEMINI_API_KEY in the Railway backend service Variables, not only in your local .env, then redeploy. A Google 401/403 or API_KEY_INVALID now returns AI_AUTH_FAILED (503); verify the key and its API restrictions in the Google project. AI_MODEL_UNAVAILABLE means the selected model is unavailable (Google 404). AI_RATE_LIMITED means quota/rate limits (429). Logs contain only code, stage and upstream HTTP status. Keep AI_RAG_ENABLED=false until Atlas ingestion and indexing are complete.
+
+Simple endpoint troubleshooting:
+- Route: backend/routes/aiRoutes.js (POST /chat).
+- Handler: backend/controllers/aiController.js (chatWithGemini).
+- Gemini call: backend/services/geminiService.js (generateAnswer).
+- Mount: backend/index.js (app.use('/api/ai', aiRoutes)).
+- Run `node backend/scripts/checkGemini.js` from the project root to test the backend key directly without MongoDB, login or React Native. This makes one small Gemini request and prints only safe diagnostic metadata.
+- GEMINI_MODEL optionally overrides the default model using a model available to your Google project.
+- Logging is limited to startup, chat start, and success/failure. Failures include a request ID, stage and provider status. No chat text or API keys are logged.

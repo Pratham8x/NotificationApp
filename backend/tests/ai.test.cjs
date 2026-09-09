@@ -68,3 +68,19 @@ test('vector search uses first-stage Atlas search, bounded candidates, and safe 
   assert.equal(result[0].content, 'demo');
   await assert.rejects(vectorSearch({model, queryVector: [1]}));
 });
+test('diagnostics classify failures without exposing provider text or secrets', () => {
+  const {errorDetails, configuration} = require('../services/aiDiagnostics');
+  for (const [message, reason] of [
+    ['API_KEY_INVALID secret-key user-message', 'KEY_INVALID'],
+    ['Your key was reported as leaked secret-key', 'KEY_REPORTED_LEAKED'],
+    ['quota exceeded secret-key', 'QUOTA_EXCEEDED'],
+    ['model is not found secret-key', 'MODEL_NOT_FOUND'],
+    ['fetch failed secret-key', 'NETWORK_ERROR'],
+  ]) {
+    const details = errorDetails({status: 400, message});
+    assert.equal(details.reason, reason);
+    assert.doesNotMatch(JSON.stringify(details), /secret-key|user-message/);
+  }
+  assert.equal(configuration().keyPresent, true);
+  assert.doesNotMatch(JSON.stringify(configuration()), /test-placeholder/);
+});

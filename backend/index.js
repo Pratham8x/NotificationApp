@@ -12,6 +12,8 @@ const uploadRoutes = require("./routes/uploadRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const {logAi, configuration} = require("./services/aiDiagnostics");
+const {GEMINI_MODEL} = require("./services/geminiService");
 const configureSocket = require("./services/socketService");
 
 const app = express();
@@ -52,6 +54,7 @@ const startServer = async () => {
 
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
+      logAi("startup", {...configuration(), model: GEMINI_MODEL});
     });
   } catch (error) {
     console.error("Server startup failed:", error);

@@ -1,4 +1,5 @@
 const {GoogleGenAI} = require('@google/genai');
+const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 let client;
 function getGeminiClient() {
   if (!process.env.GEMINI_API_KEY?.trim()) {
@@ -7,14 +8,14 @@ function getGeminiClient() {
     throw error;
   }
   if (!client) client = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
+    apiKey: process.env.GEMINI_API_KEY.trim(),
     httpOptions: {timeout: 30000, retryOptions: {attempts: 1}},
   });
   return client;
 }
 async function generateAnswer(message, context = '', history = []) {
   const response = await getGeminiClient().models.generateContent({
-    model: 'gemini-3.8-flash',
+    model: GEMINI_MODEL,
     contents: [
       ...history.map(item => ({role: item.role, parts: [{text: item.text}]})),
       {role: 'user', parts: [{text: JSON.stringify({context, question: message})}]},
@@ -28,4 +29,4 @@ async function generateAnswer(message, context = '', history = []) {
   if (!answer) throw new Error('AI returned no text');
   return answer;
 }
-module.exports = {getGeminiClient, generateAnswer};
+module.exports = {getGeminiClient, generateAnswer, GEMINI_MODEL};
