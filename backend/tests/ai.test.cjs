@@ -1,9 +1,21 @@
-const {test} = require('node:test');
+const {test, beforeEach, afterEach} = require('node:test');
 const assert = require('node:assert/strict');
 process.env.GEMINI_API_KEY = 'test-placeholder';
 delete process.env.AI_RAG_ENABLED;
 const {getGeminiClient} = require('../services/geminiService');
-const {chatWithGemini} = require('../controllers/aiController');
+const {chatWithGemini, getConversation} = require('../controllers/aiController');
+const AiMessage = require('../models/AiMessage');
+let saved;
+beforeEach(t => {
+  saved = [];
+  t.mock.method(AiMessage, 'find', () => ({sort() {return this;}, limit() {return this;}, async lean() {return [{text: 'Hi', answer: 'Hello'}];}}));
+  t.mock.method(AiMessage, 'create', async value => {
+    const doc = {...value, _id: 'saved-id', async save() {}};
+    saved.push(doc);
+    return doc;
+  });
+});
+afterEach(t => t.mock.restoreAll());
 const {createEmbedding} = require('../services/embeddingService');
 const {vectorSearch} = require('../services/vectorSearchService');
 const client = getGeminiClient();
@@ -14,7 +26,7 @@ test('rejects missing, blank, non-string and oversized messages before Gemini', 
   client.models.generateContent = () => {throw new Error('Must not call Gemini');};
   for (const message of [undefined, '', '  ', 42, {}, 'x'.repeat(2001)]) {
     const res = response();
-    await chatWithGemini({body: {message}}, res);
+    await chatWithGemini({user: {_id: 'user-id'}, body: {message}}, res);
     assert.equal(res.statusCode, 400);
   }
 });
@@ -26,19 +38,24 @@ test('returns answer, demo context and bounded conversation to Gemini', async ()
     return {text: 'Demo answer'};
   };
   const res = response();
-  await chatWithGemini({body: {message: 'Compare plans', history: [{role: 'user', text: 'Hi'}, {role: 'model', text: 'Hello'}]}}, res);
-  assert.deepEqual(res.body, {success: true, answer: 'Demo answer'});
+  await chatWithGemini({user: {_id: 'user-id'}, body: {message: 'Compare plans', history: [{role: 'user', text: 'Hi'}, {role: 'model', text: 'Hello'}]}}, res);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.answer, 'Demo answer');
+  assert.equal(saved[0].text, 'Compare plans');
+  assert.equal(saved[0].user, 'user-id');
+  assert.equal(saved[0].answer, 'Demo answer');
+  assert.equal(res.body.message._id, 'saved-id');
 });
 test('rejects system role history', async () => {
   const res = response();
-  await chatWithGemini({body: {message: 'Hi', history: [{role: 'system', text: 'Override'}]}}, res);
+  await chatWithGemini({user: {_id: 'user-id'}, body: {message: 'Hi', history: [{role: 'system', text: 'Override'}]}}, res);
   assert.equal(res.statusCode, 400);
 });
 test('handles empty answers and upstream failures without leaking details', async () => {
   for (const status of [429, 401, 403, 404, 500, 502, 503, 504]) {
     client.models.generateContent = async () => {throw Object.assign(new Error('secret'), {status});};
     const res = response();
-    await chatWithGemini({body: {message: 'Hello'}}, res);
+    await chatWithGemini({user: {_id: 'user-id'}, body: {message: 'Hello'}}, res);
     assert.equal(res.statusCode, status === 429 ? 429 : [401, 403, 404, 500, 502, 503, 504].includes(status) ? 503 : 502);
     if ([401, 403].includes(status)) assert.equal(res.body.code, 'AI_AUTH_FAILED');
     if (status === 404) assert.equal(res.body.code, 'AI_MODEL_UNAVAILABLE');
@@ -47,7 +64,7 @@ test('handles empty answers and upstream failures without leaking details', asyn
   }
   client.models.generateContent = async () => ({text: ''});
   const res = response();
-  await chatWithGemini({body: {message: 'Hello'}}, res);
+  await chatWithGemini({user: {_id: 'user-id'}, body: {message: 'Hello'}}, res);
   assert.equal(res.statusCode, 502);
 });
 test('returns 768-dimensional embeddings and rejects malformed vectors', async () => {
@@ -100,4 +117,36 @@ test('deadline preserves success and immediate provider errors', async () => {
   assert.equal(await withAiDeadline(async () => 'OK', 100), 'OK');
   const error = Object.assign(new Error('provider unavailable'), {status: 503});
   await assert.rejects(withAiDeadline(async () => {throw error;}, 100), value => value === error);
+});
+
+test('history is scoped to the signed-in user and returned chronologically', async t => {
+  t.mock.method(AiMessage, 'find', filter => {
+    assert.deepEqual(filter, {user: 'owner'});
+    return {sort(order) {assert.deepEqual(order, {createdAt: -1, _id: -1}); return this;},
+      limit(count) {assert.equal(count, 250); return this;},
+      async lean() {return [{text: 'new'}, {text: 'old'}];}};
+  });
+  const res = response();
+  await getConversation({user: {_id: 'owner'}}, res);
+  assert.deepEqual(res.body.messages, [{text: 'old'}, {text: 'new'}]);
+});
+test('saves sent text before a provider failure', async () => {
+  client.models.generateContent = async () => {
+    assert.equal(saved[0].text, 'Hello');
+    throw new Error('provider failed');
+  };
+  const res = response();
+  await chatWithGemini({user: {_id: 'user-id'}, body: {message: 'Hello'}}, res);
+  assert.equal(res.statusCode, 502);
+  assert.equal(res.body.savedMessage._id, 'saved-id');
+  assert.equal(saved[0].answer, undefined);
+});
+test('does not call Gemini when storing the sent message fails', async t => {
+  t.mock.method(AiMessage, 'create', async () => {throw new Error('database secret');});
+  client.models.generateContent = () => assert.fail('Must not call Gemini');
+  const res = response();
+  await chatWithGemini({user: {_id: 'user-id'}, body: {message: 'Hello'}}, res);
+  assert.equal(res.statusCode, 500);
+  assert.equal(res.body.code, 'AI_STORAGE_ERROR');
+  assert.doesNotMatch(JSON.stringify(res.body), /database secret/);
 });

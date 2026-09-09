@@ -3,6 +3,18 @@ const {randomUUID} = require('node:crypto');
 const {generateAnswer, GEMINI_MODEL} = require('../services/geminiService');
 const {getContext} = require('../services/aiContextService');
 const {logAi, configuration, errorDetails} = require('../services/aiDiagnostics');
+const AiMessage = require('../models/AiMessage');
+
+async function getConversation(req, res) {
+  try {
+    const messages = await AiMessage.find({user: req.user._id})
+      .sort({createdAt: -1, _id: -1}).limit(250).lean();
+    return res.json({success: true, messages: messages.reverse()});
+  } catch {
+    return res.status(500).json({success: false, message: 'Could not load AI conversation.'});
+  }
+}
+
 async function chatWithGemini(req, res) {
   const {message, history = []} = req.body || {};
   if (typeof message !== 'string' || !message.trim() || message.length > 2000) {
@@ -16,24 +28,39 @@ async function chatWithGemini(req, res) {
   const requestId = randomUUID();
   res.set?.('X-AI-Request-ID', requestId);
   logAi('chat_started', {requestId, model: GEMINI_MODEL, ...configuration()});
-  let stage = 'context';
+  let stage = 'storage';
+  let savedMessage;
   try {
+    const previous = await AiMessage.find({user: req.user._id, answer: {$ne: null}})
+      .sort({createdAt: -1, _id: -1}).limit(5).lean();
+    const savedHistory = previous.reverse().flatMap(item => [
+      {role: 'user', text: item.text}, {role: 'model', text: item.answer.slice(0, 8000)},
+    ]);
+    savedMessage = await AiMessage.create({user: req.user._id, text: message.trim()});
+    stage = 'context';
     const answer = await withAiDeadline(async signal => {
       const context = await getContext(message.trim(), signal);
       signal.throwIfAborted();
       stage = 'generation';
       logAi('generation_started', {requestId, durationMs: Date.now() - started});
-      return generateAnswer(message.trim(), context, history, signal);
+      return generateAnswer(message.trim(), context, savedHistory, signal);
     });
     logAi('generation_succeeded', {requestId, durationMs: Date.now() - started});
-    return res.json({success: true, answer});
+    stage = 'storage';
+    savedMessage.answer = answer;
+    await savedMessage.save();
+    return res.json({success: true, answer, message: savedMessage});
   } catch (error) {
     // Log only allowlisted metadata; never raw SDK errors, keys or prompts.
     const upstreamStatus = Number(error.status);
     let status = 502;
     let code = 'AI_UPSTREAM_ERROR';
     let errorMessage = 'AI is temporarily unavailable. Please try again later.';
-    if (error.code === 'AI_TIMEOUT') {
+    if (stage === 'storage') {
+      status = 500;
+      code = 'AI_STORAGE_ERROR';
+      errorMessage = 'Could not save AI conversation. Please try again.';
+    } else if (error.code === 'AI_TIMEOUT') {
       status = 504;
       code = 'AI_TIMEOUT';
       errorMessage = 'AI took too long to respond. Please try again.';
@@ -63,7 +90,8 @@ async function chatWithGemini(req, res) {
       requestId, code, stage, model: GEMINI_MODEL,
       durationMs: Date.now() - started, ...errorDetails(error),
     }, true);
-    return res.status(status).json({success: false, code, requestId, message: errorMessage});
+    return res.status(status).json({success: false, code, requestId, message: errorMessage,
+      savedMessage: savedMessage ? {_id: savedMessage._id, text: savedMessage.text} : undefined});
   }
 }
-module.exports = {chatWithGemini};
+module.exports = {chatWithGemini, getConversation};

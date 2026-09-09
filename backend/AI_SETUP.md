@@ -45,7 +45,7 @@ Successful response:
 {"success":true,"answer":"Gemini answer here"}
 ```
 
-Optional history is an array of alternating {role: 'user'|'model', text: '...'} pairs, limited to 10 entries. No conversation database storage is added. AI messages last while the screen is open.
+AI conversations are saved in MongoDB in the `aimessages` collection, scoped to the authenticated user. Each document contains the sent text, optional AI answer, and timestamps. Sent messages remain saved even if Gemini fails. GET /api/ai/messages returns the latest 250 exchanges in chronological order; the app loads them when opened. Generation uses the latest five completed exchanges from the database. Legacy client history is validated but no longer used. Successful chat responses also include the saved document as `message`.
 
 Frontend additions: src/screens/AiChatScreen.jsx; an AiChat stack route in src/navigation/AppNavigator.js; a Chirpy AI header row above users in src/screens/HomeScreen.jsx. Includes pending state, request cancellation, and retryable error feedback.
 

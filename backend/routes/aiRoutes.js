@@ -1,7 +1,8 @@
 const express = require('express');
 const authenticate = require('../middleware/auth');
-const {chatWithGemini} = require('../controllers/aiController');
+const {chatWithGemini, getConversation} = require('../controllers/aiController');
 const router = express.Router();
+router.get('/messages', authenticate, getConversation);
 // Bounded per-process admission control. Use gateway limits across multiple replicas.
 const requests = new Map();
 const cleanup = setInterval(() => {

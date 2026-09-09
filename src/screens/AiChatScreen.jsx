@@ -8,14 +8,32 @@ const AiChatScreen = ({navigation}) => {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const listRef = useRef(null);
   const requestRef = useRef(null);
-  useEffect(() => () => requestRef.current?.abort(), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    api.get('/ai/messages', {signal: controller.signal, timeout: 15000})
+      .then(({data}) => {
+        if (!controller.signal.aborted) setMessages(data.messages.flatMap(item => [
+          {id: `${item._id}-user`, role: 'user', text: item.text},
+          ...(item.answer ? [{id: `${item._id}-ai`, role: 'model', text: item.answer}] : []),
+        ]));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError('Could not load conversation. Reopen this chat to try again.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => {
+      controller.abort();
+      requestRef.current?.abort();
+    };
+  }, []);
 
   const send = async () => {
     const message = text.trim();
-    if (!message || requestRef.current) return;
+    if (!message || loading || requestRef.current) return;
     const controller = new AbortController();
     requestRef.current = controller;
     setSending(true);
@@ -24,13 +42,14 @@ const AiChatScreen = ({navigation}) => {
     const userMessage = {id: `${Date.now()}-user`, role: 'user', text: message};
     setMessages(previous => [...previous, userMessage]);
     try {
-      const history = messages.slice(-10).map(item => ({role: item.role, text: item.text.slice(0, 8000)}));
-      const {data} = await api.post('/ai/chat', {message, history}, {timeout: 75000, signal: controller.signal});
+      const {data} = await api.post('/ai/chat', {message}, {timeout: 75000, signal: controller.signal});
       if (!data.success || typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('Invalid AI response');
       if (!controller.signal.aborted) setMessages(previous => [...previous, {id: `${Date.now()}-ai`, role: 'model', text: data.answer}]);
     } catch (requestError) {
       if (!controller.signal.aborted) {
-        setMessages(previous => previous.filter(item => item.id !== userMessage.id));
+        if (!requestError.response?.data?.savedMessage) {
+          setMessages(previous => previous.filter(item => item.id !== userMessage.id));
+        }
         setText(message);
         setError(requestError.response?.data?.message || 'Could not reach AI. Please try again.');
       }
@@ -51,13 +70,13 @@ const AiChatScreen = ({navigation}) => {
         <FlatList ref={listRef} data={messages} keyExtractor={item => item.id} contentContainerStyle={styles.messages}
           onContentSizeChange={() => listRef.current?.scrollToEnd({animated: true})}
           renderItem={({item}) => <View style={[styles.bubble, item.role === 'user' ? styles.mine : styles.theirs]}><Text selectable style={styles.messageText}>{item.text}</Text></View>}
-          ListEmptyComponent={<Text style={styles.empty}>Hi! Ask about motor insurance, compare our fictional demo plans, or explore the sample claim process. This conversation is kept only while this screen is open.</Text>}
+          ListEmptyComponent={loading ? <ActivityIndicator color="#2563EB" /> : <Text style={styles.empty}>Hi! Ask about motor insurance, compare our fictional demo plans, or explore the sample claim process. Your conversation is saved to your account.</Text>}
           ListFooterComponent={sending ? <Text style={styles.presence}>Chirpy AI is typing…</Text> : null}
         />
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <View style={styles.composer}>
-          <TextInput value={text} onChangeText={setText} editable={!sending} style={styles.input} placeholder="Ask about insurance" placeholderTextColor="#94A3B8" multiline maxLength={2000} accessibilityLabel="Message to Chirpy AI" />
-          <TouchableOpacity style={[styles.send, (!text.trim() || sending) && styles.sendDisabled]} onPress={send} disabled={!text.trim() || sending} accessibilityRole="button" accessibilityLabel="Send message">
+          <TextInput value={text} onChangeText={setText} editable={!sending && !loading} style={styles.input} placeholder="Ask about insurance" placeholderTextColor="#94A3B8" multiline maxLength={2000} accessibilityLabel="Message to Chirpy AI" />
+          <TouchableOpacity style={[styles.send, (!text.trim() || sending || loading) && styles.sendDisabled]} onPress={send} disabled={!text.trim() || sending || loading} accessibilityRole="button" accessibilityLabel="Send message">
             {sending ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="send" size={19} color="#FFFFFF" />}
           </TouchableOpacity>
         </View>
